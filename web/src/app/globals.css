@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+/* ============================================================
+   CUSTOM SEAS LOUNGE — Direction artistique "pirate premium"
+   Palette : abysses (nuit en mer) · laiton/or · parchemin ·
+   vert-de-gris · sang. Double serif type affiche de film.
+   ============================================================ */
+
+@theme {
+  /* — Fonds — */
+  --color-abyss: #0a1822;
+  --color-abyss-2: #0f2330;
+  --color-abyss-3: #16313f;
+  --color-hull: #1d2a2e;
+
+  /* — Métaux & accents — */
+  --color-brass: #c8a24b;
+  --color-brass-bright: #e6c168;
+  --color-brass-deep: #7c5f25;
+  --color-verdigris: #3fa796;
+  --color-verdigris-deep: #1f6157;
+  --color-blood: #a32f28;
+  --color-blood-bright: #c9463c;
+
+  /* — Parchemin & encre — */
+  --color-parchment: #ecdcb6;
+  --color-parchment-2: #d8c191;
+  --color-bone: #f4ecd8;
+  --color-ink: #20160a;
+  --color-fog: #8fa3a8;
+  --color-fog-deep: #5c7077;
+
+  /* — Polices (injectées par next/font) — */
+  --font-display: var(--font-cinzel), "Times New Roman", serif;
+  --font-body: var(--font-spectral), Georgia, serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-plank: 3px;
+}
+
+/* Texture : grain de parchemin / brume marine, sans dépendance image */
+@layer base {
+  :root {
+    --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  }
+
+  html { color-scheme: dark; }
+
+  body {
+    background-color: var(--color-abyss);
+    background-image:
+      radial-gradient(1200px 700px at 50% -10%, rgba(63, 167, 150, 0.10), transparent 60%),
+      radial-gradient(900px 600px at 90% 10%, rgba(200, 162, 75, 0.08), transparent 55%),
+      linear-gradient(180deg, #0a1822 0%, #081019 100%);
+    background-attachment: fixed;
+    color: var(--color-parchment);
+    font-family: var(--font-body);
+    font-feature-settings: "liga", "kern";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Voile de grain global, discret */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: var(--noise);
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 1;
+    mix-blend-mode: overlay;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+
+  ::selection { background: var(--color-brass); color: var(--color-ink); }
+
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-track { background: #081019; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--color-brass-deep), #4a3a18);
+    border-radius: 2px;
+    border: 2px solid #081019;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-brass); }
+}
+
+/* ============================================================
+   COMPOSANTS UTILITAIRES
+   ============================================================ */
+@layer components {
+  .seal {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    font-size: 0.7rem;
+    color: var(--color-brass);
+  }
+
+  .plank {
+    position: relative;
+    background: linear-gradient(180deg, rgba(22, 49, 63, 0.92), rgba(13, 33, 44, 0.92));
+    border: 1px solid rgba(200, 162, 75, 0.22);
+    border-radius: var(--radius-plank);
+    box-shadow: 0 1px 0 rgba(244, 236, 216, 0.04) inset, 0 18px 40px -24px rgba(0, 0, 0, 0.8);
+  }
+  .plank-bracket::before,
+  .plank-bracket::after {
+    content: "";
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 2px solid var(--color-brass);
+    opacity: 0.55;
+  }
+  .plank-bracket::before { top: 7px; left: 7px; border-right: 0; border-bottom: 0; }
+  .plank-bracket::after { bottom: 7px; right: 7px; border-left: 0; border-top: 0; }
+
+  .parchment {
+    background: radial-gradient(120% 120% at 0% 0%, #f0e3c2 0%, #e3d0a4 55%, #d4bd8c 100%);
+    color: var(--color-ink);
+    border: 1px solid #b89a5e;
+    border-radius: var(--radius-plank);
+    box-shadow: 0 10px 30px -18px rgba(0,0,0,0.7);
+  }
+
+  .btn-brass {
+    --b1: #e6c168; --b2: #b88a32;
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-display);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 0.82rem; font-weight: 700;
+    color: #2a1d06;
+    padding: 0.62rem 1.2rem;
+    background: linear-gradient(180deg, var(--b1), var(--b2));
+    border: 1px solid #6e521f;
+    border-top-color: #f3d98c;
+    border-radius: var(--radius-plank);
+    box-shadow: 0 2px 0 #5a4319, 0 10px 22px -12px rgba(0,0,0,0.8);
+    transition: transform .08s ease, filter .15s ease;
+    cursor: pointer;
+  }
+  .btn-brass:hover { filter: brightness(1.06); }
+  .btn-brass:active { transform: translateY(2px); box-shadow: 0 0 0 #5a4319; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    font-family: var(--font-display);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 0.82rem; font-weight: 700;
+    color: var(--color-parchment);
+    padding: 0.6rem 1.15rem;
+    background: rgba(63, 167, 150, 0.06);
+    border: 1px solid rgba(200, 162, 75, 0.4);
+    border-radius: var(--radius-plank);
+    transition: background .15s ease, border-color .15s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: rgba(200, 162, 75, 0.12); border-color: var(--color-brass); }
+
+  .rope-rule {
+    height: 6px;
+    background: repeating-linear-gradient(45deg, var(--color-brass-deep) 0 6px, #4a3a18 6px 12px);
+    border-radius: 3px;
+    opacity: 0.55;
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem; letter-spacing: 0.04em;
+    padding: 0.18rem 0.55rem;
+    border-radius: 2px;
+    border: 1px solid currentColor;
+  }
+
+  .stat-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .text-shadow-deep { text-shadow: 0 2px 18px rgba(0,0,0,0.55); }
+  .content-layer { position: relative; z-index: 2; }
+}

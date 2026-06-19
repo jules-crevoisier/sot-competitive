@@ -1,0 +1,91 @@
+// Custom Seas Lounge — schéma de données
+// SQLite pour tourner en local sans service externe. Migrable vers Postgres.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+/// Un pirate inscrit sur la plateforme.
+model Player {
+  id        String   @id @default(cuid())
+  handle    String   @unique // pseudo affiché (= nom en jeu)
+  discordId String?  @unique // rempli au login Discord (OAuth)
+  avatarHue Int      @default(40) // teinte de l'avatar généré (0-360)
+  country   String? // code ISO pour le drapeau, ex "FR"
+  bio       String?
+  role      String   @default("PLAYER") // PLAYER | STAFF | ADMIN
+  createdAt DateTime @default(now())
+
+  ratings        Rating[]
+  matchPlayers   MatchPlayer[]
+  hostedMatches  Match[]       @relation("HostedMatches")
+  validatedMatches Match[]     @relation("ValidatedMatches")
+}
+
+/// Classement d'un joueur sur un ladder (mode) précis.
+model Rating {
+  id            String @id @default(cuid())
+  player        Player @relation(fields: [playerId], references: [id])
+  playerId      String
+  mode          String // clé de mode, ex "sloop-1v1"
+  mmr           Int    @default(1500)
+  peakMmr       Int    @default(1500)
+  wins          Int    @default(0)
+  losses        Int    @default(0)
+  streak        Int    @default(0) // >0 série de victoires, <0 série de défaites
+  placementsLeft Int   @default(5) // matchs de placement restants
+  season        Int    @default(1)
+
+  @@unique([playerId, mode, season])
+  @@index([mode, season, mmr])
+}
+
+/// Un match ranked entre deux équipages.
+model Match {
+  id        String   @id @default(cuid())
+  mode      String
+  season    Int      @default(1)
+  status    String   @default("AWAITING_PROOF")
+  // AWAITING_PROOF | AWAITING_VALIDATION | VALIDATED | DISPUTED | CANCELLED
+  joinCode  String? // code Custom Seas à 5 caractères
+  scoreA    Int      @default(0)
+  scoreB    Int      @default(0)
+  winner    String? // "A" | "B" | null
+  proofUrl  String? // capture du Scoreboard final
+  notes     String?
+
+  host          Player?  @relation("HostedMatches", fields: [hostId], references: [id])
+  hostId        String?
+  validatedBy   Player?  @relation("ValidatedMatches", fields: [validatedById], references: [id])
+  validatedById String?
+
+  createdAt   DateTime @default(now())
+  playedAt    DateTime @default(now())
+  validatedAt DateTime?
+
+  players MatchPlayer[]
+
+  @@index([mode, season, status])
+  @@index([status])
+}
+
+/// Participation d'un joueur à un match (côté équipage + impact MMR).
+model MatchPlayer {
+  id        String @id @default(cuid())
+  match     Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId   String
+  player    Player @relation(fields: [playerId], references: [id])
+  playerId  String
+  team      String // "A" | "B"
+  mmrBefore Int    @default(0)
+  mmrAfter  Int    @default(0)
+  mmrDelta  Int    @default(0)
+
+  @@unique([matchId, playerId])
+  @@index([playerId])
+}
