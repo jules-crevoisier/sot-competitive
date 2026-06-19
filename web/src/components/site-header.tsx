@@ -2,16 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CompassRose, DiscordMark } from "./icons";
+import { CompassRose } from "./icons";
+import { PlayerSwitcher } from "./player-switcher";
 
 const NAV = [
-  { href: "/ladder/sloop-1v1", label: "Classement", match: "/ladder" },
+  { href: "/ladder/sloop-2v2", label: "Classement", match: "/ladder" },
   { href: "/modes", label: "Modes", match: "/modes" },
-  { href: "/matches", label: "Matchs", match: "/matches" },
+  { href: "/teams", label: "Équipages", match: "/teams" },
+  { href: "/friends", label: "Amis", match: "/friends" },
+  { href: "/events", label: "Events", match: "/events" },
   { href: "/play", label: "Jouer", match: "/play" },
 ];
 
-export function SiteHeader() {
+type Lite = { id: string; handle: string; avatarHue: number; role: string };
+
+export function SiteHeader({
+  current,
+  players,
+}: {
+  current: Lite | null;
+  players: Lite[];
+}) {
   const pathname = usePathname();
   return (
     <header className="content-layer sticky top-0 z-50">
@@ -60,10 +71,7 @@ export function SiteHeader() {
             <Link href="/admin" className="hidden text-fog hover:text-parchment sm:block" title="Espace staff">
               <span className="font-display text-xs uppercase tracking-widest">Staff</span>
             </Link>
-            <button className="btn-brass" style={{ background: "linear-gradient(180deg,#5865F2,#404abf)", color: "#fff", borderColor: "#2b317d" }}>
-              <DiscordMark width={16} height={16} />
-              <span className="hidden sm:inline">Connexion</span>
-            </button>
+            <PlayerSwitcher current={current} players={players} />
           </div>
         </div>
       </div>

@@ -17,6 +17,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     where: { id },
     include: {
       ratings: { where: { season: 1 } },
+      membership: { include: { team: true } },
       matchPlayers: {
         include: { match: { include: { players: { include: { player: true } } } } },
         orderBy: { match: { playedAt: "desc" } },
@@ -25,6 +26,13 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     },
   });
   if (!player) notFound();
+
+  const socials = [
+    player.twitch && { label: "Twitch", href: `https://twitch.tv/${player.twitch}`, handle: player.twitch },
+    player.youtube && { label: "YouTube", href: `https://youtube.com/@${player.youtube}`, handle: player.youtube },
+    player.twitter && { label: "X", href: `https://x.com/${player.twitter}`, handle: `@${player.twitter}` },
+  ].filter(Boolean) as { label: string; href: string; handle: string }[];
+  const hasIdentity = player.weapon || player.playStyle || player.membership || socials.length > 0;
 
   // ladder principal = celui avec le plus de matchs joués (wins+losses)
   const sorted = [...player.ratings].sort((x, y) => y.wins + y.losses - (x.wins + x.losses));
@@ -89,6 +97,43 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {/* Colonne gauche : courbe + ladders */}
         <div className="space-y-6">
+          {hasIdentity && (
+            <div className="plank p-5">
+              <p className="seal">Fiche de pont</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {player.weapon && (
+                  <Detail label="Arme préférée" value={player.weapon} />
+                )}
+                {player.playStyle && (
+                  <Detail label="Style de jeu" value={player.playStyle} />
+                )}
+                {player.membership && (
+                  <div>
+                    <span className="mb-1 block font-display text-[0.6rem] uppercase tracking-widest text-fog">Équipage</span>
+                    <Link href={`/teams/${player.membership.teamId}`} className="font-display text-parchment hover:text-brass">
+                      [{player.membership.team.tag}] {player.membership.team.name}
+                    </Link>
+                  </div>
+                )}
+              </div>
+              {socials.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-brass/10 pt-4">
+                  {socials.map((s) => (
+                    <a
+                      key={s.label}
+                      href={s.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="chip text-brass transition-colors hover:bg-brass/10"
+                    >
+                      {s.label} · {s.handle}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {mainHistory.length > 1 && (
             <div className="plank p-5">
               <p className="seal">Évolution MMR · {mainMode?.name}</p>
@@ -169,6 +214,15 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="mb-1 block font-display text-[0.6rem] uppercase tracking-widest text-fog">{label}</span>
+      <span className="text-parchment">{value}</span>
     </div>
   );
 }

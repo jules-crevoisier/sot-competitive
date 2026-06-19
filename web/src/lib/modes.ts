@@ -33,11 +33,11 @@ const COMMON: Switch[] = [
 
 export const MODES: Mode[] = [
   {
-    key: "sloop-1v1",
-    name: "Sloop Duel",
-    tagline: "1 contre 1",
+    key: "sloop-2v2",
+    name: "Sloop Clash",
+    tagline: "2 contre 2",
     ship: "Sloop",
-    teamSize: 1,
+    teamSize: 2,
     tier: "principal",
     format: "Best of 5 (premier à 3 coulages)",
     preset: "Competitive Pirates",
@@ -45,7 +45,7 @@ export const MODES: Mode[] = [
     accent: "brass",
     icon: "swords",
     summary:
-      "Le format le plus pur : lecture du vent, gunfight et abordage. Le ladder phare de la plateforme.",
+      "Le format le plus pur : lecture du vent, gunfight et abordage à deux. Le ladder phare de la plateforme.",
     switches: [
       ...COMMON,
       { label: "Scoring Method", value: "Ship/Crew" },
@@ -55,11 +55,11 @@ export const MODES: Mode[] = [
     ],
   },
   {
-    key: "brig-2v2",
+    key: "brig-3v3",
     name: "Brigantine Brawl",
-    tagline: "2 contre 2",
+    tagline: "3 contre 3",
     ship: "Brigantine",
-    teamSize: 2,
+    teamSize: 3,
     tier: "principal",
     format: "Best of 3",
     preset: "Competitive Pirates",
@@ -67,7 +67,7 @@ export const MODES: Mode[] = [
     accent: "verdigris",
     icon: "anchor",
     summary:
-      "Coordination à deux : un à la barre, un aux canons. Le compromis vitesse / puissance de feu.",
+      "Coordination à trois : barre, canons et abordage. Le compromis idéal vitesse / puissance de feu.",
     switches: [
       ...COMMON,
       { label: "Friendly Fire", value: "Off" },
@@ -79,7 +79,7 @@ export const MODES: Mode[] = [
   {
     key: "galleon-4v4",
     name: "Galleon War",
-    tagline: "3v3 / 4v4",
+    tagline: "4 contre 4",
     ship: "Galleon",
     teamSize: 4,
     tier: "principal",
@@ -156,4 +156,18 @@ export const MODE_MAP: Record<string, Mode> = Object.fromEntries(
 
 export function getMode(key: string): Mode | undefined {
   return MODE_MAP[key];
+}
+
+/** Joueurs par équipage réellement requis (le sniper FFA forme un pool de 3). */
+export function perTeamFor(mode: Mode): number {
+  return mode.key === "sniper-ffa" ? 3 : mode.teamSize;
+}
+
+/**
+ * Taille de groupe maximale pour entrer dans la file d'un mode.
+ * Un groupe ne peut pas dépasser la taille d'un équipage ; le sniper FFA
+ * se joue en solo.
+ */
+export function maxPartySize(mode: Mode): number {
+  return mode.key === "sniper-ffa" ? 1 : mode.teamSize;
 }

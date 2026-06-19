@@ -49,7 +49,7 @@ sans dépendance Next) dans un petit package `packages/core`, importé par le we
 
 ## Flux d'un match (identique au web)
 
-1. `/file sloop-1v1` → le bot ajoute le joueur à une **file en mémoire/Redis** par mode.
+1. `/file sloop-2v2` → le bot ajoute le joueur à une **file en mémoire/Redis** par mode.
 2. File pleine → le bot appelle `formTable(mode)` (core) → embed avec Join Code + Switches.
 3. Le host joue, fait `/report 3 1 <url>` → `submitResult(...)`.
 4. Un staff fait `/valider <id>` → `validateMatch(...)` → MMR recalculé, ladder web à jour

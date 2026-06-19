@@ -1,36 +1,51 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { Mode } from "@/lib/modes";
+import { maxPartySize, perTeamFor } from "@/lib/modes";
 import { ACCENT } from "@/lib/accent";
 import { ModeGlyph, ShipWheel } from "./icons";
-import { formTable } from "@/lib/actions";
+import { joinQueue } from "@/lib/social-actions";
 
 export function QueueBoard({
   modes,
   counts,
+  partySize = 1,
 }: {
   modes: Mode[];
   counts: Record<string, number>;
+  partySize?: number;
 }) {
-  const [selected, setSelected] = useState(modes[0].key);
+  // un mode est jouable si le groupe tient dans un équipage
+  const modeFits = (m: Mode) => partySize <= maxPartySize(m);
+  const firstFitting = modes.find(modeFits) ?? modes[0];
+
+  const [selected, setSelected] = useState(firstFitting.key);
   const [phase, setPhase] = useState<"idle" | "queue" | "found">("idle");
   const [inQueue, setInQueue] = useState(0);
   const [secs, setSecs] = useState(0);
   const [pending, start] = useTransition();
+  const launched = useRef(false);
 
   const mode = modes.find((m) => m.key === selected)!;
   const a = ACCENT[mode.accent];
-  const needed = (mode.key === "sniper-ffa" ? 3 : mode.teamSize) * 2;
+  const needed = perTeamFor(mode) * 2;
+  const fits = modeFits(mode);
+  const startFill = Math.min(needed, Math.max(1, partySize));
 
-  // Simulation de remplissage de la file
+  // Simulation de remplissage de la file (cosmétique)
   useEffect(() => {
     if (phase !== "queue") return;
-    setInQueue(1);
-    setSecs(0);
     const grow = setInterval(() => {
-      setInQueue((n) => Math.min(needed, n + 1));
-    }, 700);
+      setInQueue((n) => {
+        if (n >= needed) {
+          clearInterval(grow);
+          setPhase("found");
+          return needed;
+        }
+        return n + 1;
+      });
+    }, 600);
     const tick = setInterval(() => setSecs((s) => s + 1), 1000);
     return () => {
       clearInterval(grow);
@@ -38,17 +53,29 @@ export function QueueBoard({
     };
   }, [phase, needed]);
 
-  // File pleine -> bascule en "table trouvée"
+  // File pleine -> on forme le salon en base puis on redirige
   useEffect(() => {
-    if (phase === "queue" && inQueue >= needed) setPhase("found");
-  }, [phase, inQueue, needed]);
-
-  // Table trouvée -> on forme la table en base puis on redirige
-  useEffect(() => {
-    if (phase !== "found") return;
-    const t = setTimeout(() => start(() => formTable(selected)), 1400);
+    if (phase !== "found" || launched.current) return;
+    launched.current = true;
+    const t = setTimeout(() => {
+      const fd = new FormData();
+      fd.set("mode", selected);
+      start(() => joinQueue(fd));
+    }, 1200);
     return () => clearTimeout(t);
-  }, [phase, selected]);
+  }, [phase, selected, start]);
+
+  function enterQueue() {
+    setInQueue(startFill);
+    setSecs(0);
+    launched.current = false;
+    setPhase("queue");
+  }
+
+  function quitQueue() {
+    setPhase("idle");
+    setInQueue(0);
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.3fr]">
@@ -59,14 +86,16 @@ export function QueueBoard({
           {modes.map((m) => {
             const ac = ACCENT[m.accent];
             const active = m.key === selected;
+            const locked = !modeFits(m);
             return (
               <button
                 key={m.key}
                 onClick={() => {
-                  if (phase === "idle") setSelected(m.key);
+                  if (phase === "idle" && !locked) setSelected(m.key);
                 }}
-                disabled={phase !== "idle"}
-                className="flex w-full items-center gap-3 rounded-sm border px-3 py-3 text-left transition-colors disabled:opacity-50"
+                disabled={phase !== "idle" || locked}
+                title={locked ? `Groupe trop grand (max ${maxPartySize(m)})` : undefined}
+                className="flex w-full items-center gap-3 rounded-sm border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
                   borderColor: active ? ac.color : "rgba(200,162,75,0.18)",
                   background: active ? ac.soft : "transparent",
@@ -79,10 +108,16 @@ export function QueueBoard({
                   <span className="block font-display text-sm text-bone">{m.name}</span>
                   <span className="block text-xs text-fog">{m.tagline} · {m.ship}</span>
                 </span>
-                <span className="stat-num text-xs text-fog">
-                  {counts[m.key] ?? 0}
-                  <span className="text-fog-deep"> classés</span>
-                </span>
+                {locked ? (
+                  <span className="font-display text-[0.6rem] uppercase tracking-widest text-fog-deep">
+                    🔒 max {maxPartySize(m)}
+                  </span>
+                ) : (
+                  <span className="stat-num text-xs text-fog">
+                    {counts[m.key] ?? 0}
+                    <span className="text-fog-deep"> classés</span>
+                  </span>
+                )}
               </button>
             );
           })}
@@ -107,12 +142,24 @@ export function QueueBoard({
               {needed} pirates · {mode.format}
             </p>
             <p className="mx-auto mt-3 max-w-sm text-sm text-fog">{mode.summary}</p>
-            <button onClick={() => setPhase("queue")} className="btn-brass mt-6 text-base">
-              <ShipWheel width={18} height={18} /> Rejoindre la file
+            <button
+              onClick={enterQueue}
+              disabled={!fits}
+              className="btn-brass mt-6 text-base disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ShipWheel width={18} height={18} />
+              {partySize > 1 ? `Rejoindre la file (groupe de ${partySize})` : "Rejoindre la file"}
             </button>
-            <p className="mt-3 font-mono text-xs text-fog-deep">
-              Démo : la table se remplit avec des pirates classés.
-            </p>
+            {fits ? (
+              <p className="mt-3 font-mono text-xs text-fog-deep">
+                Démo : le salon se complète avec des pirates classés.
+              </p>
+            ) : (
+              <p className="mx-auto mt-3 max-w-sm text-xs text-blood-bright">
+                Ton groupe de {partySize} est trop grand pour ce mode (max {maxPartySize(mode)} par
+                équipage). Choisis un mode plus grand ou réduis le groupe.
+              </p>
+            )}
           </div>
         )}
 
@@ -123,7 +170,7 @@ export function QueueBoard({
               {inQueue}<span className="text-fog-deep">/{needed}</span>
             </div>
             <p className="mt-1 text-sm text-fog">pirates rassemblés…</p>
-            <div className="mt-5 flex justify-center gap-1.5">
+            <div className="mt-5 flex flex-wrap justify-center gap-1.5">
               {Array.from({ length: needed }).map((_, i) => (
                 <span
                   key={i}
@@ -134,7 +181,7 @@ export function QueueBoard({
             </div>
             <p className="mt-5 font-mono text-xs text-fog">temps d&apos;attente {secs}s</p>
             <button
-              onClick={() => setPhase("idle")}
+              onClick={quitQueue}
               className="mt-5 font-display text-xs uppercase tracking-widest text-fog hover:text-blood-bright"
             >
               Quitter la file
@@ -147,13 +194,13 @@ export function QueueBoard({
             <div className="animate-pulse" style={{ color: a.color }}>
               <ShipWheel width={64} height={64} />
             </div>
-            <h2 className="mt-4 font-display text-3xl font-black text-bone">Table trouvée !</h2>
+            <h2 className="mt-4 font-display text-3xl font-black text-bone">Salon formé !</h2>
             <p className="mt-2 text-fog">
-              {pending ? "Création de la session…" : "Les équipages sont tirés au sort."}
+              {pending ? "Ouverture du salon…" : "Les équipages sont constitués."}
             </p>
             <div className="mt-4 inline-flex items-center gap-2 font-mono text-sm text-brass">
               <span className="h-2 w-2 animate-ping rounded-full bg-brass" />
-              redirection vers le lobby
+              redirection vers le salon
             </div>
           </div>
         )}

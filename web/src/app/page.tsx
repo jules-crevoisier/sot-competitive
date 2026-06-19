@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const [topRatings, modeCounts, recentMatches, totals] = await Promise.all([
     db.rating.findMany({
-      where: { mode: "sloop-1v1", season: 1 },
+      where: { mode: "sloop-2v2", season: 1 },
       orderBy: { mmr: "desc" },
       take: 5,
       include: { player: true },
@@ -159,7 +159,7 @@ export default async function HomePage() {
                 );
               })}
             </div>
-            <Link href="/ladder/sloop-1v1" className="mt-4 inline-block font-display text-xs uppercase tracking-widest text-brass hover:text-brass-bright">
+            <Link href="/ladder/sloop-2v2" className="mt-4 inline-block font-display text-xs uppercase tracking-widest text-brass hover:text-brass-bright">
               Voir tout le classement →
             </Link>
           </div>

@@ -21,10 +21,184 @@ model Player {
   role      String   @default("PLAYER") // PLAYER | STAFF | ADMIN
   createdAt DateTime @default(now())
 
+  // — Profil personnalisable —
+  weapon    String? // arme favorite, ex "Eye of Reach"
+  playStyle String? // style de jeu, ex "Abordage agressif"
+  twitch    String? // chaîne Twitch (handle, sans URL)
+  youtube   String? // chaîne YouTube
+  twitter   String? // X / Twitter
+
   ratings        Rating[]
   matchPlayers   MatchPlayer[]
   hostedMatches  Match[]       @relation("HostedMatches")
   validatedMatches Match[]     @relation("ValidatedMatches")
+
+  membership   TeamMember? // équipage du joueur (un seul)
+  captainOf    Team[]      @relation("Captain")
+
+  // — Social : amis, groupes, salons, chat —
+  friendsInitiated Friendship[]  @relation("FriendRequester")
+  friendsReceived  Friendship[]  @relation("FriendAddressee")
+  partyMembership  PartyMember? // groupe courant (un seul)
+  partiesLed       Party[]       @relation("PartyLeader")
+  lobbyMemberships LobbyMember[]
+  lobbiesHosted    Lobby[]       @relation("LobbyHost")
+  chatMessages     ChatMessage[] @relation("ChatAuthor")
+}
+
+/// Lien d'amitié entre deux pirates (demande puis acceptation).
+model Friendship {
+  id          String   @id @default(cuid())
+  requester   Player   @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  addressee   Player   @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  addresseeId String
+  status      String   @default("PENDING") // PENDING | ACCEPTED
+  createdAt   DateTime @default(now())
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@index([requesterId, status])
+}
+
+/// Un groupe (party) qui fait la file ensemble. Un joueur = un seul groupe.
+model Party {
+  id        String   @id @default(cuid())
+  leader    Player   @relation("PartyLeader", fields: [leaderId], references: [id], onDelete: Cascade)
+  leaderId  String
+  mode      String? // dernier mode visé en file
+  createdAt DateTime @default(now())
+
+  members PartyMember[]
+}
+
+/// Appartenance d'un joueur à un groupe.
+model PartyMember {
+  id       String   @id @default(cuid())
+  party    Party    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  partyId  String
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String   @unique // un joueur ne peut être que dans un groupe
+  joinedAt DateTime @default(now())
+
+  @@index([partyId])
+}
+
+/// Un salon de match formé par la file : hôte, code Custom Seas, équipages, prêt.
+model Lobby {
+  id        String   @id @default(cuid())
+  mode      String
+  season    Int      @default(1)
+  status    String   @default("AWAITING_CODE") // AWAITING_CODE | READY | LAUNCHED | CANCELLED
+  joinCode  String? // code Custom Seas saisi par l'hôte
+  host      Player   @relation("LobbyHost", fields: [hostId], references: [id])
+  hostId    String
+  matchId   String? // match créé au lancement
+  createdAt DateTime @default(now())
+
+  members LobbyMember[]
+
+  @@index([status])
+}
+
+/// Présence d'un joueur dans un salon (équipage + prêt).
+model LobbyMember {
+  id       String  @id @default(cuid())
+  lobby    Lobby   @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  lobbyId  String
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String
+  team     String // "A" | "B"
+  ready    Boolean @default(false)
+  isBot    Boolean @default(false) // pirate de remplissage (démo)
+
+  @@unique([lobbyId, playerId])
+  @@index([lobbyId])
+}
+
+/// Un message de chat (privé, de groupe ou global).
+model ChatMessage {
+  id          String   @id @default(cuid())
+  channelType String // DM | PARTY | GLOBAL
+  channelKey  String // DM: "idA__idB" trié · PARTY: partyId · GLOBAL: "global"
+  author      Player   @relation("ChatAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId    String
+  body        String
+  createdAt   DateTime @default(now())
+
+  @@index([channelType, channelKey, createdAt])
+}
+
+/// Un équipage (team) avec capitaine, tag et page dédiée.
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  tag       String   @unique // tag court, ex "KRK"
+  blurb     String? // devise / présentation
+  accentHue Int      @default(40) // teinte de l'emblème généré
+  createdAt DateTime @default(now())
+
+  captain   Player @relation("Captain", fields: [captainId], references: [id])
+  captainId String
+  members   TeamMember[]
+}
+
+/// Appartenance d'un joueur à un équipage (un joueur = un seul équipage).
+model TeamMember {
+  id       String   @id @default(cuid())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId   String
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId String   @unique
+  role     String   @default("MEMBER") // CAPTAIN | OFFICER | MEMBER
+  joinedAt DateTime @default(now())
+
+  @@unique([teamId, playerId])
+  @@index([teamId])
+}
+
+/// Un événement communautaire (tournoi, soirée test…).
+model Event {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  mode        String? // clé de mode concernée, optionnelle
+  format      String? // ex "Double élimination 4v4"
+  startsAt    DateTime
+  status      String   @default("UPCOMING") // UPCOMING | OPEN | LIVE | DONE
+  capacity    Int? // nombre d'équipes/joueurs max
+  prize       String? // lot / récompense
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([status, startsAt])
+}
+
+/// Un partenaire / streamer Twitch mis en avant.
+model Partner {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  twitchUrl String
+  tagline   String?
+  avatarHue Int      @default(280)
+  tier      String   @default("PARTNER") // PARTNER | AMBASSADEUR
+  live      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+/// Une proposition de mode soumise par la communauté.
+model ModeProposal {
+  id            String   @id @default(cuid())
+  name          String
+  format        String? // ex "3v3 capture de point"
+  pitch         String // description / argumentaire
+  proposerHandle String?
+  votes         Int      @default(0)
+  status        String   @default("PENDING") // PENDING | TESTING | ACCEPTED | REJECTED
+  createdAt     DateTime @default(now())
+
+  @@index([status])
 }
 
 /// Classement d'un joueur sur un ladder (mode) précis.
@@ -32,7 +206,7 @@ model Rating {
   id            String @id @default(cuid())
   player        Player @relation(fields: [playerId], references: [id])
   playerId      String
-  mode          String // clé de mode, ex "sloop-1v1"
+  mode          String // clé de mode, ex "sloop-2v2"
   mmr           Int    @default(1500)
   peakMmr       Int    @default(1500)
   wins          Int    @default(0)

@@ -18,6 +18,15 @@ const HANDLES = [
   ["DeadEyeLuc", "CH", 230], ["Brumaire", "FR", 100], ["Goeland", "FR", 165],
 ] as const;
 
+const WEAPONS = ["Eye of Reach", "Flintlock", "Blunderbuss", "Sabre", "Double-boulet"];
+const STYLES = [
+  "Abordage agressif",
+  "Sniper patient",
+  "Barreur défensif",
+  "Canonnier de précision",
+  "Touche-à-tout",
+];
+
 function rand(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -27,9 +36,20 @@ function pick<T>(arr: T[]): T {
 
 async function main() {
   console.log("→ Nettoyage…");
+  await db.chatMessage.deleteMany();
+  await db.lobbyMember.deleteMany();
+  await db.lobby.deleteMany();
+  await db.partyMember.deleteMany();
+  await db.party.deleteMany();
+  await db.friendship.deleteMany();
   await db.matchPlayer.deleteMany();
   await db.match.deleteMany();
   await db.rating.deleteMany();
+  await db.teamMember.deleteMany();
+  await db.team.deleteMany();
+  await db.event.deleteMany();
+  await db.partner.deleteMany();
+  await db.modeProposal.deleteMany();
   await db.player.deleteMany();
 
   console.log("→ Joueurs…");
@@ -44,6 +64,9 @@ async function main() {
         avatarHue: hue as number,
         role,
         discordId: `seed_${i}`,
+        weapon: pick(WEAPONS),
+        playStyle: pick(STYLES),
+        twitch: i % 4 === 0 ? handle.toLowerCase().replace(/[^a-z0-9]/g, "") : null,
         bio:
           i % 3 === 0
             ? "Écume ses adversaires depuis l'Arène. Préfère le canon double-boulet."
@@ -179,10 +202,160 @@ async function main() {
     await db.matchPlayer.create({ data: { matchId: match.id, playerId: roster[1].id, team: "B" } });
   }
 
+  // Équipages : on regroupe les joueurs par paquets, premier = capitaine.
+  console.log("→ Équipages…");
+  const TEAMS = [
+    { name: "Les Écumeurs", tag: "ECU", blurb: "On prend la mer, on prend les têtes.", hue: 40 },
+    { name: "Kraken's Maw", tag: "KRK", blurb: "Aspirés dans les profondeurs.", hue: 165 },
+    { name: "La Veuve Noire", tag: "VVN", blurb: "Une voile à l'horizon, un naufrage de plus.", hue: 350 },
+    { name: "Marée Rouge", tag: "MRE", blurb: "Le pont ne sèche jamais.", hue: 8 },
+  ];
+  let cursor = 0;
+  for (const t of TEAMS) {
+    const size = rand(3, 4);
+    const roster = players.slice(cursor, cursor + size);
+    cursor += size;
+    if (roster.length < 2) break;
+    const team = await db.team.create({
+      data: {
+        name: t.name,
+        tag: t.tag,
+        blurb: t.blurb,
+        accentHue: t.hue,
+        captainId: roster[0].id,
+        members: {
+          create: roster.map((p, i) => ({
+            playerId: p.id,
+            role: i === 0 ? "CAPTAIN" : i === 1 ? "OFFICER" : "MEMBER",
+          })),
+        },
+      },
+    });
+    void team;
+  }
+
+  console.log("→ Événements…");
+  const day = 24 * 60 * 60 * 1000;
+  await db.event.createMany({
+    data: [
+      {
+        slug: "coupe-des-abysses-1",
+        title: "Coupe des Abysses #1",
+        mode: "galleon-4v4",
+        format: "Double élimination · 8 équipages",
+        startsAt: new Date(Date.now() + 7 * day),
+        status: "OPEN",
+        capacity: 8,
+        prize: "1 mois de Nitro × crew + badge Vainqueur S1",
+        description:
+          "Le premier grand tournoi 4v4 de la saison. Réglages Galleon War imposés, arbitrage staff en direct sur Discord.",
+      },
+      {
+        slug: "soiree-test-sniper",
+        title: "Soirée test · Sniper Arena",
+        mode: "sniper-ffa",
+        format: "FFA tournant · fun",
+        startsAt: new Date(Date.now() + 2 * day),
+        status: "OPEN",
+        capacity: 24,
+        prize: "Badge Testeur Alpha",
+        description: "On éprouve l'équilibrage du mode Sniper. Retours bienvenus pour ajuster les règles.",
+      },
+      {
+        slug: "ligue-sloop-hiver",
+        title: "Ligue Sloop · manche d'ouverture",
+        mode: "sloop-2v2",
+        format: "Ladder accéléré · 1 soirée",
+        startsAt: new Date(Date.now() + 14 * day),
+        status: "UPCOMING",
+        capacity: 32,
+        prize: "Points de ligue + Hall of Fame",
+        description: "Première manche de la ligue Sloop 1v1. Chaque victoire compte double pour le classement saisonnier.",
+      },
+      {
+        slug: "showmatch-lancement",
+        title: "Showmatch de lancement",
+        mode: "brig-3v3",
+        format: "Exhibition castée",
+        startsAt: new Date(Date.now() - 5 * day),
+        status: "DONE",
+        prize: "—",
+        description: "Le match d'inauguration de la plateforme, casté par nos partenaires Twitch.",
+      },
+    ],
+  });
+
+  console.log("→ Partenaires…");
+  await db.partner.createMany({
+    data: [
+      { slug: "captain-rhea", name: "Captain_Rhea", twitchUrl: "https://twitch.tv/captain_rhea", tagline: "Casts compétitifs & coaching naval.", avatarHue: 280, tier: "AMBASSADEUR", live: true },
+      { slug: "le-bosco", name: "LeBosco", twitchUrl: "https://twitch.tv/lebosco", tagline: "Soirées Custom Seas tous les jeudis.", avatarHue: 200, tier: "PARTNER", live: false },
+      { slug: "saltyqueen", name: "SaltyQueen", twitchUrl: "https://twitch.tv/saltyqueen", tagline: "Sniper main, clips & highlights.", avatarHue: 330, tier: "PARTNER", live: false },
+      { slug: "vieux-tom", name: "VieuxTom", twitchUrl: "https://twitch.tv/vieuxtom", tagline: "Analyses tactiques de galions.", avatarHue: 45, tier: "PARTNER", live: false },
+    ],
+  });
+
+  console.log("→ Propositions de modes…");
+  await db.modeProposal.createMany({
+    data: [
+      { name: "Capture du Fort", format: "4v4 · contrôle de zone", pitch: "Un fort au centre, l'équipage qui le tient le plus longtemps gagne. Mélange PvP et tenue de position.", proposerHandle: "Mistral", votes: 12, status: "TESTING" },
+      { name: "Course aux Voiles", format: "2v2 · régate armée", pitch: "Parcours de bouées à franchir, tir autorisé. Le premier à boucler trois tours l'emporte.", proposerHandle: "NorthWind", votes: 7, status: "PENDING" },
+      { name: "Dernier à flot", format: "FFA · battle royale naval", pitch: "Six sloops, zone qui rétrécit, dernier équipage à flot gagne.", proposerHandle: "Calypso", votes: 21, status: "PENDING" },
+    ],
+  });
+
+  // Amitiés : le joueur par défaut (players[0], ADMIN) est lié à plusieurs pirates.
+  console.log("→ Amitiés…");
+  const me = players[0];
+  // amis acceptés
+  for (let i = 1; i <= 5; i++) {
+    await db.friendship.create({
+      data: { requesterId: me.id, addresseeId: players[i].id, status: "ACCEPTED" },
+    });
+  }
+  // demandes reçues en attente
+  for (let i = 6; i <= 7; i++) {
+    await db.friendship.create({
+      data: { requesterId: players[i].id, addresseeId: me.id, status: "PENDING" },
+    });
+  }
+  // quelques amitiés entre autres pirates
+  await db.friendship.create({ data: { requesterId: players[2].id, addresseeId: players[3].id, status: "ACCEPTED" } });
+  await db.friendship.create({ data: { requesterId: players[4].id, addresseeId: players[8].id, status: "ACCEPTED" } });
+
+  // Un groupe mené par le joueur par défaut, avec deux amis.
+  console.log("→ Groupe de démo…");
+  await db.party.create({
+    data: {
+      leaderId: me.id,
+      mode: "brig-3v3",
+      members: { create: [{ playerId: me.id }, { playerId: players[1].id }] },
+    },
+  });
+
+  // Chat : un canal global animé + un DM avec un ami.
+  console.log("→ Chat…");
+  const dm = [me.id, players[1].id].sort().join("__");
+  const now = Date.now();
+  await db.chatMessage.createMany({
+    data: [
+      { channelType: "GLOBAL", channelKey: "global", authorId: players[2].id, body: "gg les abysses, qui fait du sloop ce soir ?", createdAt: new Date(now - 60 * 60000) },
+      { channelType: "GLOBAL", channelKey: "global", authorId: players[5].id, body: "moi chaud, ping en file", createdAt: new Date(now - 55 * 60000) },
+      { channelType: "GLOBAL", channelKey: "global", authorId: players[3].id, body: "la coupe des abysses approche, on monte un crew ?", createdAt: new Date(now - 20 * 60000) },
+      { channelType: "DM", channelKey: dm, authorId: players[1].id, body: "salut ! on lance une brig ?", createdAt: new Date(now - 10 * 60000) },
+      { channelType: "DM", channelKey: dm, authorId: me.id, body: "ouais je crée le groupe, je t'ajoute", createdAt: new Date(now - 9 * 60000) },
+    ],
+  });
+
   const counts = {
     players: await db.player.count(),
     matches: await db.match.count(),
     ratings: await db.rating.count(),
+    teams: await db.team.count(),
+    events: await db.event.count(),
+    partners: await db.partner.count(),
+    friendships: await db.friendship.count(),
+    chatMessages: await db.chatMessage.count(),
   };
   console.log("✓ Seed terminé :", counts);
 }

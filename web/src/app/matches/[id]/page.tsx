@@ -7,7 +7,8 @@ import { rankForMmr } from "@/lib/ranks";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { ModeGlyph, CompassRose } from "@/components/icons";
 import { timeAgo, STATUS_LABEL, STATUS_COLOR, signed, flag } from "@/lib/format";
-import { submitResult, validateMatch, disputeMatch } from "@/lib/actions";
+import { submitResult, validateMatch, disputeMatch, reportMatch } from "@/lib/actions";
+import { getCurrentPlayer } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,19 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   });
   if (!match) notFound();
 
+  const me = await getCurrentPlayer();
   const mode = getMode(match.mode);
   const a = mode ? ACCENT[mode.accent] : ACCENT.brass;
   const A = match.players.filter((p) => p.team === "A");
   const B = match.players.filter((p) => p.team === "B");
   const aWon = match.winner === "A";
   const validated = match.status === "VALIDATED";
+
+  const isParticipant = me ? match.players.some((p) => p.playerId === me.id) : false;
+  const isStaff = me?.role === "STAFF" || me?.role === "ADMIN";
+  const canReport =
+    (isParticipant || isStaff) &&
+    (match.status === "AWAITING_PROOF" || match.status === "AWAITING_VALIDATION");
 
   return (
     <div className="content-layer mx-auto max-w-4xl px-4 py-10">
@@ -153,6 +161,54 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
         </section>
+      )}
+
+      {/* Signaler un problème (participants) */}
+      {canReport && (
+        <details className="plank mt-6 p-5" style={{ borderColor: "rgba(176,42,42,0.35)" }}>
+          <summary className="flex cursor-pointer items-center gap-2 font-display text-sm uppercase tracking-widest text-fog hover:text-blood-bright">
+            <span className="text-blood-bright">⚑</span> Signaler un problème
+          </summary>
+          <p className="mt-3 text-sm text-fog">
+            Mauvais Join Code, abandon, joueur absent, triche ou désaccord sur le score&nbsp;? Ouvre
+            un litige&nbsp;: le match passe en arbitrage staff.
+          </p>
+          <form action={reportMatch} className="mt-4 grid gap-3 sm:max-w-lg">
+            <input type="hidden" name="matchId" value={match.id} />
+            <label className="text-sm text-fog">
+              Motif
+              <select
+                name="reason"
+                defaultValue="mauvais-code"
+                className="mt-1 w-full rounded-sm border border-brass/30 bg-abyss px-3 py-2 text-sm text-parchment outline-none focus:border-brass"
+              >
+                <option value="mauvais-code">Join Code erroné / partie introuvable</option>
+                <option value="abandon">Abandon / joueur parti en cours</option>
+                <option value="absent">Joueur absent (no-show)</option>
+                <option value="triche">Triche / item banni</option>
+                <option value="conflit-score">Désaccord sur le score</option>
+                <option value="autre">Autre problème</option>
+              </select>
+            </label>
+            <label className="text-sm text-fog">
+              Détail (optionnel)
+              <textarea
+                name="detail"
+                rows={3}
+                maxLength={500}
+                placeholder="Décris ce qui s'est passé pour aider le staff à trancher…"
+                className="mt-1 w-full rounded-sm border border-brass/30 bg-abyss px-3 py-2 text-sm text-parchment outline-none focus:border-brass"
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn-ghost justify-center"
+              style={{ borderColor: "var(--color-blood)", color: "var(--color-blood-bright)" }}
+            >
+              ⚑ Envoyer le signalement
+            </button>
+          </form>
+        </details>
       )}
 
       {/* Équipages */}

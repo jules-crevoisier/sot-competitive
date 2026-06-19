@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "./db";
 import { getMode } from "./modes";
 import { computeMatch } from "./mmr";
+import { getCurrentPlayer } from "./session";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function joinCode() {
@@ -157,6 +158,50 @@ export async function disputeMatch(formData: FormData) {
   const matchId = String(formData.get("matchId"));
   const note = String(formData.get("note") || "Litige ouvert par le staff.");
   await db.match.update({ where: { id: matchId }, data: { status: "DISPUTED", notes: note } });
+  revalidatePath(`/matches/${matchId}`);
+  revalidatePath("/admin");
+}
+
+const REPORT_REASONS: Record<string, string> = {
+  "mauvais-code": "Join Code erroné / partie introuvable",
+  abandon: "Abandon / joueur parti en cours de match",
+  absent: "Joueur absent (no-show)",
+  triche: "Triche / item banni",
+  "conflit-score": "Désaccord sur le score",
+  autre: "Autre problème",
+};
+
+/**
+ * Signalement par un participant : passe le match en litige avec le motif et
+ * le pseudo du rapporteur, pour arbitrage staff. (cf. doc §6)
+ */
+export async function reportMatch(formData: FormData) {
+  const me = await getCurrentPlayer();
+  if (!me) throw new Error("Aucun pirate connecté");
+
+  const matchId = String(formData.get("matchId"));
+  const reason = String(formData.get("reason") || "autre");
+  const detail = String(formData.get("detail") || "").trim().slice(0, 500);
+
+  const match = await db.match.findUnique({
+    where: { id: matchId },
+    include: { players: { select: { playerId: true } } },
+  });
+  if (!match) throw new Error("Match introuvable");
+  if (match.status === "VALIDATED" || match.status === "CANCELLED") return;
+
+  // seuls les participants (ou le staff) peuvent signaler
+  const isParticipant = match.players.some((p) => p.playerId === me.id);
+  const isStaff = me.role === "STAFF" || me.role === "ADMIN";
+  if (!isParticipant && !isStaff) return;
+
+  const label = REPORT_REASONS[reason] ?? REPORT_REASONS.autre;
+  const note = `Signalé par ${me.handle} — ${label}${detail ? ` : ${detail}` : ""}`;
+
+  await db.match.update({
+    where: { id: matchId },
+    data: { status: "DISPUTED", notes: note },
+  });
   revalidatePath(`/matches/${matchId}`);
   revalidatePath("/admin");
 }
