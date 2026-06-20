@@ -6,6 +6,7 @@ import { db } from "./db";
 import { getMode } from "./modes";
 import { computeMatch } from "./mmr";
 import { getCurrentPlayer } from "./session";
+import { getActiveSeason } from "./season";
 import { recognizeText, checkScores } from "./ocr";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -13,11 +14,11 @@ function joinCode() {
   return Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
 }
 
-async function ensureRating(playerId: string, mode: string) {
+async function ensureRating(playerId: string, mode: string, season: number) {
   return db.rating.upsert({
-    where: { playerId_mode_season: { playerId, mode, season: 1 } },
+    where: { playerId_mode_season: { playerId, mode, season } },
     update: {},
-    create: { playerId, mode, season: 1 },
+    create: { playerId, mode, season },
   });
 }
 
@@ -31,10 +32,11 @@ export async function formTable(modeKey: string) {
   if (!mode) throw new Error("Mode inconnu");
   const perTeam = modeKey === "sniper-ffa" ? 3 : mode.teamSize;
   const needed = perTeam * 2;
+  const season = await getActiveSeason();
 
   // pioche parmi les joueurs ayant un classement sur ce mode
   const ratings = await db.rating.findMany({
-    where: { mode: modeKey, season: 1 },
+    where: { mode: modeKey, season },
     include: { player: true },
   });
   const pool = ratings.sort(() => Math.random() - 0.5).slice(0, needed);
@@ -43,7 +45,7 @@ export async function formTable(modeKey: string) {
   const match = await db.match.create({
     data: {
       mode: modeKey,
-      season: 1,
+      season,
       status: "AWAITING_PROOF",
       joinCode: joinCode(),
       hostId: pool[0].playerId,
@@ -120,8 +122,8 @@ export async function validateMatch(formData: FormData) {
   const A = match.players.filter((p) => p.team === "A");
   const B = match.players.filter((p) => p.team === "B");
 
-  const ratingsA = await Promise.all(A.map((p) => ensureRating(p.playerId, match.mode)));
-  const ratingsB = await Promise.all(B.map((p) => ensureRating(p.playerId, match.mode)));
+  const ratingsA = await Promise.all(A.map((p) => ensureRating(p.playerId, match.mode, match.season)));
+  const ratingsB = await Promise.all(B.map((p) => ensureRating(p.playerId, match.mode, match.season)));
 
   const aWon = match.winner === "A";
   const margin = Math.abs(match.scoreA - match.scoreB) / Math.max(1, Math.max(match.scoreA, match.scoreB));
@@ -147,7 +149,7 @@ export async function validateMatch(formData: FormData) {
           data: { mmrBefore: r.mmr, mmrAfter: after, mmrDelta: deltas[i] },
         });
         await tx.rating.update({
-          where: { playerId_mode_season: { playerId: side[i].playerId, mode: match.mode, season: 1 } },
+          where: { playerId_mode_season: { playerId: side[i].playerId, mode: match.mode, season: match.season } },
           data: {
             mmr: after,
             peakMmr: Math.max(r.peakMmr, after),

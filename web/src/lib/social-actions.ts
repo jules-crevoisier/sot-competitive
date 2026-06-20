@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { db } from "./db";
 import { getMode, perTeamFor, maxPartySize } from "./modes";
 import { requireCurrentPlayer } from "./session";
+import { getActiveSeason } from "./season";
 
 const COOKIE = "sot_player";
 
@@ -162,6 +163,7 @@ export async function joinQueue(formData: FormData) {
 
   const perTeam = perTeamFor(mode);
   const needed = perTeam * 2;
+  const season = await getActiveSeason();
 
   // membres humains : moi + mon groupe
   const membership = await db.partyMember.findUnique({
@@ -188,7 +190,7 @@ export async function joinQueue(formData: FormData) {
   let bots: { id: string }[] = [];
   if (slots > 0) {
     const ratings = await db.rating.findMany({
-      where: { mode: modeKey, season: 1, playerId: { notIn: [...humanIds] } },
+      where: { mode: modeKey, season, playerId: { notIn: [...humanIds] } },
       select: { playerId: true },
     });
     bots = ratings
@@ -209,7 +211,7 @@ export async function joinQueue(formData: FormData) {
   const lobby = await db.lobby.create({
     data: {
       mode: modeKey,
-      season: 1,
+      season,
       status: "AWAITING_CODE",
       hostId,
       members: {
@@ -270,16 +272,16 @@ export async function launchLobby(formData: FormData) {
   if (!lobby || lobby.hostId !== me.id) return;
   if (!lobby.joinCode) return;
 
-  // ratings de départ pour mmrBefore
+  // ratings de départ pour mmrBefore (saison du salon)
   const ratings = await db.rating.findMany({
-    where: { mode: lobby.mode, season: 1, playerId: { in: lobby.members.map((m) => m.playerId) } },
+    where: { mode: lobby.mode, season: lobby.season, playerId: { in: lobby.members.map((m) => m.playerId) } },
   });
   const mmrOf = new Map(ratings.map((r) => [r.playerId, r.mmr]));
 
   const match = await db.match.create({
     data: {
       mode: lobby.mode,
-      season: 1,
+      season: lobby.season,
       status: "AWAITING_PROOF",
       joinCode: lobby.joinCode,
       hostId: lobby.hostId,

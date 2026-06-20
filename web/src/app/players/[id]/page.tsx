@@ -8,15 +8,17 @@ import { PirateAvatar } from "@/components/pirate-avatar";
 import { RankBadge } from "@/components/rank-badge";
 import { ModeGlyph } from "@/components/icons";
 import { flag, timeAgo, signed } from "@/lib/format";
+import { getActiveSeason } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const season = await getActiveSeason();
   const player = await db.player.findUnique({
     where: { id },
     include: {
-      ratings: { where: { season: 1 } },
+      ratings: { where: { season } },
       membership: { include: { team: true } },
       matchPlayers: {
         include: { match: { include: { players: { include: { player: true } } } } },

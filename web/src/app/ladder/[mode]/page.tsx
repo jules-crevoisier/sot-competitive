@@ -8,6 +8,7 @@ import { PirateAvatar } from "@/components/pirate-avatar";
 import { RankBadge } from "@/components/rank-badge";
 import { ModeGlyph } from "@/components/icons";
 import { flag } from "@/lib/format";
+import { getActiveSeason } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,10 @@ export default async function LadderPage({
   const mode = getMode(modeKey);
   if (!mode) notFound();
   const a = ACCENT[mode.accent];
+  const season = await getActiveSeason();
 
   const ratings = await db.rating.findMany({
-    where: { mode: modeKey, season: 1 },
+    where: { mode: modeKey, season },
     orderBy: { mmr: "desc" },
     include: { player: true },
   });

@@ -6,18 +6,20 @@ import { CompassRose, ShipWheel, Flag, WaveDivider, DiscordMark } from "@/compon
 import { ModeCard } from "@/components/mode-card";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { flag, timeAgo } from "@/lib/format";
+import { getActiveSeason } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const season = await getActiveSeason();
   const [topRatings, modeCounts, recentMatches, totals] = await Promise.all([
     db.rating.findMany({
-      where: { mode: "sloop-2v2", season: 1 },
+      where: { mode: "sloop-2v2", season },
       orderBy: { mmr: "desc" },
       take: 5,
       include: { player: true },
     }),
-    db.rating.groupBy({ by: ["mode"], where: { season: 1 }, _count: true }),
+    db.rating.groupBy({ by: ["mode"], where: { season }, _count: true }),
     db.match.findMany({
       where: { status: "VALIDATED" },
       orderBy: { playedAt: "desc" },

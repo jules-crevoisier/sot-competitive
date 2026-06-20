@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { rankForMmr } from "@/lib/ranks";
 import { getCurrentPlayer } from "@/lib/session";
+import { getActiveSeason } from "@/lib/season";
 import { recruitMember, kickMember, setMemberRole, leaveTeam, disbandTeam } from "@/lib/community-actions";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { Flag } from "@/components/icons";
@@ -33,12 +34,13 @@ export default async function TeamPage({
   const { id } = await params;
   const { err, ok } = await searchParams;
   const me = await getCurrentPlayer();
+  const season = await getActiveSeason();
   const team = await db.team.findUnique({
     where: { id },
     include: {
       captain: true,
       members: {
-        include: { player: { include: { ratings: { where: { season: 1 } } } } },
+        include: { player: { include: { ratings: { where: { season } } } } },
       },
     },
   });

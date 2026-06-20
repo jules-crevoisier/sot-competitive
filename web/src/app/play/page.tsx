@@ -6,12 +6,14 @@ import { PirateAvatar } from "@/components/pirate-avatar";
 import { getCurrentPlayer } from "@/lib/session";
 import { createParty, leaveParty, kickFromParty, addToParty } from "@/lib/social-actions";
 import { DiscordMark } from "@/components/icons";
+import { getActiveSeason } from "@/lib/season";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Jouer — Custom Seas Lounge" };
 
 export default async function PlayPage() {
-  const grouped = await db.rating.groupBy({ by: ["mode"], where: { season: 1 }, _count: true });
+  const season = await getActiveSeason();
+  const grouped = await db.rating.groupBy({ by: ["mode"], where: { season }, _count: true });
   const counts = Object.fromEntries(grouped.map((g) => [g.mode, g._count]));
 
   const me = await getCurrentPlayer();

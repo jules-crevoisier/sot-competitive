@@ -159,6 +159,13 @@ model TeamMember {
   @@index([teamId])
 }
 
+/// Réglage global clé/valeur (ex: saison active du ladder).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 /// Un événement communautaire (tournoi, soirée test…).
 model Event {
   id          String   @id @default(cuid())
