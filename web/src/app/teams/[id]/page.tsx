@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { rankForMmr } from "@/lib/ranks";
+import { getCurrentPlayer } from "@/lib/session";
+import { recruitMember, kickMember, setMemberRole, leaveTeam, disbandTeam } from "@/lib/community-actions";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { Flag } from "@/components/icons";
 import { flag } from "@/lib/format";
@@ -14,8 +16,23 @@ const ROLE_LABEL: Record<string, string> = {
   MEMBER: "Membre",
 };
 
-export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
+const TEAM_ERR: Record<string, string> = {
+  droits: "Seul le capitaine peut recruter.",
+  introuvable: "Aucun pirate à ce pseudo.",
+  deja: "Ce pirate est déjà dans un équipage.",
+  capitaine: "Le capitaine doit dissoudre l'équipage, pas le quitter.",
+};
+
+export default async function TeamPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ err?: string; ok?: string }>;
+}) {
   const { id } = await params;
+  const { err, ok } = await searchParams;
+  const me = await getCurrentPlayer();
   const team = await db.team.findUnique({
     where: { id },
     include: {
@@ -26,6 +43,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     },
   });
   if (!team) notFound();
+
+  const isCaptain = !!me && team.captainId === me.id;
+  const myMember = me ? team.members.find((m) => m.playerId === me.id) : undefined;
 
   // membre le mieux classé (sur son meilleur MMR tous modes confondus)
   const memberStats = team.members.map((m) => {
@@ -77,35 +97,126 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         </div>
       </header>
 
+      {(err || ok) && (
+        <p
+          className="mt-4 rounded-sm border px-4 py-2 text-sm"
+          style={
+            err
+              ? { borderColor: "var(--color-blood)", color: "var(--color-blood-bright)" }
+              : { borderColor: "var(--color-verdigris)", color: "var(--color-verdigris)" }
+          }
+        >
+          {err ? TEAM_ERR[err] ?? "Action impossible." : "Recrue embarquée !"}
+        </p>
+      )}
+
       <div className="plank mt-6 p-5">
         <p className="seal">Le rôle d&apos;équipage</p>
         <div className="mt-4 divide-y divide-brass/10">
           {memberStats.map(({ m, best, wins, losses }) => {
             const rank = rankForMmr(best || 1500);
+            const isThisCaptain = m.role === "CAPTAIN";
             return (
-              <Link
-                key={m.id}
-                href={`/players/${m.player.id}`}
-                className="flex items-center gap-3 px-2 py-3 transition-colors hover:bg-brass/5"
-              >
-                <PirateAvatar handle={m.player.handle} hue={m.player.avatarHue} size={42} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-display text-bone">
-                    {flag(m.player.country)} {m.player.handle}
+              <div key={m.id} className="flex items-center gap-3 px-2 py-3">
+                <Link
+                  href={`/players/${m.player.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 transition-colors hover:opacity-80"
+                >
+                  <PirateAvatar handle={m.player.handle} hue={m.player.avatarHue} size={42} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-display text-bone">
+                      {flag(m.player.country)} {m.player.handle}
+                    </div>
+                    <div className="text-xs" style={{ color: rank.color }}>
+                      {ROLE_LABEL[m.role] ?? m.role} · {rank.name}
+                    </div>
                   </div>
-                  <div className="text-xs" style={{ color: rank.color }}>
-                    {ROLE_LABEL[m.role] ?? m.role} · {rank.name}
+                  <div className="text-right">
+                    <div className="stat-num text-lg font-bold text-brass">{best || "—"}</div>
+                    <div className="text-xs text-fog">{wins}V · {losses}D</div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="stat-num text-lg font-bold text-brass">{best || "—"}</div>
-                  <div className="text-xs text-fog">{wins}V · {losses}D</div>
-                </div>
-              </Link>
+                </Link>
+                {isCaptain && !isThisCaptain && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <form action={setMemberRole}>
+                      <input type="hidden" name="teamId" value={team.id} />
+                      <input type="hidden" name="playerId" value={m.player.id} />
+                      <input type="hidden" name="role" value={m.role === "OFFICER" ? "MEMBER" : "OFFICER"} />
+                      <button
+                        type="submit"
+                        className="rounded-sm border border-brass/30 px-2 py-1 text-[0.6rem] uppercase tracking-widest text-brass transition-colors hover:bg-brass/10"
+                        title={m.role === "OFFICER" ? "Rétrograder en membre" : "Promouvoir officier"}
+                      >
+                        {m.role === "OFFICER" ? "↓ Membre" : "↑ Officier"}
+                      </button>
+                    </form>
+                    <form action={kickMember}>
+                      <input type="hidden" name="teamId" value={team.id} />
+                      <input type="hidden" name="playerId" value={m.player.id} />
+                      <button
+                        type="submit"
+                        className="rounded-sm border border-blood/40 px-2 py-1 text-[0.6rem] uppercase tracking-widest text-blood-bright transition-colors hover:bg-blood/10"
+                        title="Exclure de l'équipage"
+                      >
+                        Exclure
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
       </div>
+
+      {/* Panneau de gestion */}
+      {(isCaptain || myMember) && (
+        <div className="plank mt-6 p-5">
+          <p className="seal">Gestion de l&apos;équipage</p>
+          {isCaptain ? (
+            <div className="mt-4 space-y-5">
+              <form action={recruitMember} className="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="teamId" value={team.id} />
+                <label className="flex-1">
+                  <span className="mb-1 block font-display text-[0.65rem] uppercase tracking-widest text-fog">
+                    Recruter un pirate (pseudo exact)
+                  </span>
+                  <input
+                    name="handle"
+                    required
+                    maxLength={24}
+                    placeholder="Mistral"
+                    className="w-full rounded-sm border border-brass/25 bg-black/30 px-3 py-2 text-sm text-parchment placeholder:text-fog-deep focus:border-brass focus:outline-none"
+                  />
+                </label>
+                <button type="submit" className="btn-brass justify-center">
+                  Recruter
+                </button>
+              </form>
+              <form action={disbandTeam} className="border-t border-blood/20 pt-4">
+                <input type="hidden" name="teamId" value={team.id} />
+                <button
+                  type="submit"
+                  className="rounded-sm border border-blood/40 px-3 py-2 text-xs uppercase tracking-widest text-blood-bright transition-colors hover:bg-blood/10"
+                >
+                  Dissoudre l&apos;équipage
+                </button>
+                <span className="ml-3 text-xs text-fog-deep">Irréversible : libère tous les membres.</span>
+              </form>
+            </div>
+          ) : (
+            <form action={leaveTeam} className="mt-4">
+              <input type="hidden" name="teamId" value={team.id} />
+              <button
+                type="submit"
+                className="rounded-sm border border-blood/40 px-3 py-2 text-xs uppercase tracking-widest text-blood-bright transition-colors hover:bg-blood/10"
+              >
+                Quitter l&apos;équipage
+              </button>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }

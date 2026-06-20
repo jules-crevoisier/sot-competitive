@@ -68,6 +68,9 @@ export function SiteHeader({
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
+            <Link href="/me" className="hidden text-fog hover:text-parchment sm:block" title="Mon profil">
+              <span className="font-display text-xs uppercase tracking-widest">Profil</span>
+            </Link>
             <Link href="/admin" className="hidden text-fog hover:text-parchment sm:block" title="Espace staff">
               <span className="font-display text-xs uppercase tracking-widest">Staff</span>
             </Link>

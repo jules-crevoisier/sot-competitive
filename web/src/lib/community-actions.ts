@@ -3,21 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "./db";
+import { requireCurrentPlayer } from "./session";
 
-/** Crée un équipage avec un capitaine choisi parmi les pirates inscrits (démo). */
+/** Crée un équipage dont le pirate courant devient capitaine. */
 export async function createTeam(formData: FormData) {
+  const me = await requireCurrentPlayer();
   const name = String(formData.get("name") || "").trim();
   const tag = String(formData.get("tag") || "").trim().toUpperCase();
   const blurb = String(formData.get("blurb") || "").trim();
-  const captainId = String(formData.get("captainId") || "").trim();
 
   if (!name || !tag) throw new Error("Nom et tag requis");
   if (tag.length < 2 || tag.length > 5) throw new Error("Le tag doit faire 2 à 5 caractères");
-  if (!captainId) throw new Error("Capitaine requis");
 
   // le capitaine ne doit pas déjà appartenir à un équipage
-  const existing = await db.teamMember.findUnique({ where: { playerId: captainId } });
-  if (existing) throw new Error("Ce pirate est déjà dans un équipage");
+  const existing = await db.teamMember.findUnique({ where: { playerId: me.id } });
+  if (existing) throw new Error("Tu es déjà dans un équipage");
 
   const team = await db.team.create({
     data: {
@@ -25,13 +25,93 @@ export async function createTeam(formData: FormData) {
       tag,
       blurb: blurb || null,
       accentHue: Math.floor(Math.random() * 360),
-      captainId,
-      members: { create: { playerId: captainId, role: "CAPTAIN" } },
+      captainId: me.id,
+      members: { create: { playerId: me.id, role: "CAPTAIN" } },
     },
   });
 
   revalidatePath("/teams");
   redirect(`/teams/${team.id}`);
+}
+
+/* ============================================================
+   MEMBRES D'ÉQUIPAGE
+   ============================================================ */
+
+/** Le capitaine recrute un pirate (par pseudo) dans son équipage. */
+export async function recruitMember(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const teamId = String(formData.get("teamId") || "");
+  const handle = String(formData.get("handle") || "").trim();
+
+  const team = await db.team.findUnique({ where: { id: teamId } });
+  if (!team || team.captainId !== me.id) redirect(`/teams/${teamId}?err=droits`);
+  if (!handle) redirect(`/teams/${teamId}?err=introuvable`);
+
+  const target = await db.player.findUnique({ where: { handle } });
+  if (!target) redirect(`/teams/${teamId}?err=introuvable`);
+
+  const already = await db.teamMember.findUnique({ where: { playerId: target.id } });
+  if (already) redirect(`/teams/${teamId}?err=deja`);
+
+  await db.teamMember.create({
+    data: { teamId, playerId: target.id, role: "MEMBER" },
+  });
+  revalidatePath(`/teams/${teamId}`);
+  redirect(`/teams/${teamId}?ok=recrue`);
+}
+
+/** Le pirate courant quitte son équipage (le capitaine ne peut pas, il doit dissoudre). */
+export async function leaveTeam(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const teamId = String(formData.get("teamId") || "");
+  const team = await db.team.findUnique({ where: { id: teamId } });
+  if (!team) return;
+  if (team.captainId === me.id) redirect(`/teams/${teamId}?err=capitaine`);
+
+  await db.teamMember.deleteMany({ where: { teamId, playerId: me.id } });
+  revalidatePath(`/teams/${teamId}`);
+  redirect("/teams");
+}
+
+/** Le capitaine exclut un membre. */
+export async function kickMember(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const teamId = String(formData.get("teamId") || "");
+  const playerId = String(formData.get("playerId") || "");
+  const team = await db.team.findUnique({ where: { id: teamId } });
+  if (!team || team.captainId !== me.id) return;
+  if (playerId === me.id) return; // le capitaine ne s'exclut pas
+
+  await db.teamMember.deleteMany({ where: { teamId, playerId } });
+  revalidatePath(`/teams/${teamId}`);
+}
+
+/** Le capitaine promeut/rétrograde un membre entre Officier et Membre. */
+export async function setMemberRole(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const teamId = String(formData.get("teamId") || "");
+  const playerId = String(formData.get("playerId") || "");
+  const role = String(formData.get("role") || "");
+  if (role !== "OFFICER" && role !== "MEMBER") return;
+
+  const team = await db.team.findUnique({ where: { id: teamId } });
+  if (!team || team.captainId !== me.id || playerId === me.id) return;
+
+  await db.teamMember.updateMany({ where: { teamId, playerId }, data: { role } });
+  revalidatePath(`/teams/${teamId}`);
+}
+
+/** Le capitaine dissout son équipage. */
+export async function disbandTeam(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const teamId = String(formData.get("teamId") || "");
+  const team = await db.team.findUnique({ where: { id: teamId } });
+  if (!team || team.captainId !== me.id) return;
+
+  await db.team.delete({ where: { id: teamId } });
+  revalidatePath("/teams");
+  redirect("/teams");
 }
 
 /** Enregistre une proposition de mode soumise par la communauté. */

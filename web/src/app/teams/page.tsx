@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { createTeam } from "@/lib/community-actions";
+import { getCurrentPlayer } from "@/lib/session";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { Flag } from "@/components/icons";
 
@@ -8,17 +9,14 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Équipages — Custom Seas Lounge" };
 
 export default async function TeamsPage() {
-  const [teams, freeCaptains] = await Promise.all([
+  const me = await getCurrentPlayer();
+  const [teams, myMembership] = await Promise.all([
     db.team.findMany({
       orderBy: { createdAt: "asc" },
       include: { captain: true, members: { include: { player: true } } },
     }),
-    // pirates pas encore dans un équipage, pour le formulaire de création
-    db.player.findMany({
-      where: { membership: null },
-      orderBy: { handle: "asc" },
-      select: { id: true, handle: true },
-    }),
+    // suis-je déjà engagé dans un équipage ?
+    me ? db.teamMember.findUnique({ where: { playerId: me.id }, include: { team: true } }) : null,
   ]);
 
   return (
@@ -71,37 +69,39 @@ export default async function TeamsPage() {
             <Flag width={20} height={20} />
             <p className="seal">Hisser une bannière</p>
           </div>
-          <form action={createTeam} className="mt-4 space-y-3">
-            <Field label="Nom de l'équipage">
-              <input name="name" required maxLength={40} className={INPUT} placeholder="Les Écumeurs" />
-            </Field>
-            <Field label="Tag (2 à 5 lettres)">
-              <input name="tag" required maxLength={5} className={INPUT} placeholder="ECU" />
-            </Field>
-            <Field label="Devise (optionnel)">
-              <input name="blurb" maxLength={80} className={INPUT} placeholder="On prend la mer, on prend les têtes." />
-            </Field>
-            <Field label="Capitaine">
-              <select name="captainId" required className={INPUT} defaultValue="">
-                <option value="" disabled>
-                  Choisir un pirate…
-                </option>
-                {freeCaptains.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.handle}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <button type="submit" className="btn-brass w-full justify-center">
-              Fonder l&apos;équipage
-            </button>
-            {freeCaptains.length === 0 && (
-              <p className="text-xs text-fog-deep">
-                Tous les pirates sont déjà engagés. (En prod, le capitaine sera le joueur connecté.)
+          {myMembership ? (
+            <div className="mt-4 space-y-3 text-sm text-fog">
+              <p>
+                Tu fais déjà partie de l&apos;équipage{" "}
+                <Link href={`/teams/${myMembership.teamId}`} className="text-brass hover:underline">
+                  [{myMembership.team.tag}] {myMembership.team.name}
+                </Link>
+                .
               </p>
-            )}
-          </form>
+              <p className="text-xs text-fog-deep">
+                Un pirate ne peut appartenir qu&apos;à un seul équipage à la fois. Quitte-le depuis sa
+                page pour en fonder un nouveau.
+              </p>
+            </div>
+          ) : (
+            <form action={createTeam} className="mt-4 space-y-3">
+              <Field label="Nom de l'équipage">
+                <input name="name" required maxLength={40} className={INPUT} placeholder="Les Écumeurs" />
+              </Field>
+              <Field label="Tag (2 à 5 lettres)">
+                <input name="tag" required maxLength={5} className={INPUT} placeholder="ECU" />
+              </Field>
+              <Field label="Devise (optionnel)">
+                <input name="blurb" maxLength={80} className={INPUT} placeholder="On prend la mer, on prend les têtes." />
+              </Field>
+              <button type="submit" className="btn-brass w-full justify-center">
+                Fonder l&apos;équipage
+              </button>
+              <p className="text-xs text-fog-deep">
+                Tu en deviendras le capitaine et pourras recruter depuis la page de l&apos;équipage.
+              </p>
+            </form>
+          )}
         </div>
       </div>
     </div>
