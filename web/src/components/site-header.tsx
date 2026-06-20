@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CompassRose } from "./icons";
 import { PlayerSwitcher } from "./player-switcher";
+import { PirateAvatar } from "./pirate-avatar";
 
 const NAV = [
   { href: "/ladder/sloop-2v2", label: "Classement", match: "/ladder" },
@@ -19,9 +20,11 @@ type Lite = { id: string; handle: string; avatarHue: number; role: string };
 export function SiteHeader({
   current,
   players,
+  authEnabled,
 }: {
   current: Lite | null;
   players: Lite[];
+  authEnabled: boolean;
 }) {
   const pathname = usePathname();
   return (
@@ -74,7 +77,40 @@ export function SiteHeader({
             <Link href="/admin" className="hidden text-fog hover:text-parchment sm:block" title="Espace staff">
               <span className="font-display text-xs uppercase tracking-widest">Staff</span>
             </Link>
-            <PlayerSwitcher current={current} players={players} />
+
+            {authEnabled ? (
+              current ? (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/me"
+                    className="flex items-center gap-2 rounded-sm border border-brass/25 bg-black/20 px-2 py-1.5 transition-colors hover:border-brass/60"
+                    title="Mon profil"
+                  >
+                    <PirateAvatar handle={current.handle} hue={current.avatarHue} size={26} />
+                    <span className="hidden font-display text-xs text-bone sm:block">{current.handle}</span>
+                  </Link>
+                  <form action="/api/auth/logout" method="post">
+                    <button
+                      type="submit"
+                      className="font-display text-xs uppercase tracking-widest text-fog hover:text-blood-bright"
+                      title="Se déconnecter"
+                    >
+                      Quitter
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="rounded-sm px-3 py-1.5 font-display text-xs font-bold uppercase tracking-widest text-white transition-transform hover:scale-[1.02]"
+                  style={{ background: "#5865F2" }}
+                >
+                  Connexion
+                </Link>
+              )
+            ) : (
+              <PlayerSwitcher current={current} players={players} />
+            )}
           </div>
         </div>
       </div>
