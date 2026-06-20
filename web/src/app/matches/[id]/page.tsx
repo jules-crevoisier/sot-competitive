@@ -122,8 +122,16 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               </div>
               <label className="mt-3 block text-sm text-fog">
                 Lien de la capture du Scoreboard
-                <input name="proofUrl" type="text" placeholder="https://…  (preuve obligatoire)"
+                <input name="proofUrl" type="text" placeholder="https://…  (optionnel si capture jointe)"
                   className="mt-1 w-full rounded-sm border border-brass/30 bg-abyss px-3 py-2 text-sm text-parchment outline-none focus:border-brass" />
+              </label>
+              <label className="mt-3 block text-sm text-fog">
+                Capture du Scoreboard (vérification auto)
+                <input name="proofImage" type="file" accept="image/*"
+                  className="mt-1 w-full text-xs text-fog file:mr-3 file:rounded-sm file:border file:border-brass/30 file:bg-brass/10 file:px-3 file:py-1.5 file:text-brass" />
+                <span className="mt-1 block text-[0.7rem] text-fog-deep">
+                  Si les deux scores sont lisibles, la preuve est confirmée automatiquement.
+                </span>
               </label>
               <button type="submit" className="btn-brass mt-4 w-full justify-center">Soumettre pour validation</button>
             </form>
@@ -143,6 +151,17 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
               <p className="mt-1 text-sm text-fog">
                 Vérifie la capture du Scoreboard puis valide — le MMR sera recalculé et le ladder mis à jour.
               </p>
+              {match.proofVerified ? (
+                <p className="mt-2 inline-flex items-center gap-2 rounded-sm border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--color-verdigris)", color: "var(--color-verdigris)" }}>
+                  ✓ Scores confirmés automatiquement sur la capture (OCR)
+                </p>
+              ) : (
+                <p className="mt-2 inline-flex items-center gap-2 rounded-sm border px-2 py-1 text-xs"
+                  style={{ borderColor: "rgba(200,162,75,0.4)", color: "var(--color-fog)" }}>
+                  Capture non confirmée par OCR — contrôle visuel requis
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <form action={validateMatch}>
@@ -227,7 +246,15 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
                 <CompassRose width={32} height={32} />
               </div>
               <div className="text-sm">
-                <div className="font-display text-parchment">Capture du Scoreboard final</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-parchment">Capture du Scoreboard final</span>
+                  {match.proofVerified && (
+                    <span className="chip text-[0.65rem]"
+                      style={{ color: "var(--color-verdigris)", borderColor: "var(--color-verdigris)" }}>
+                      ✓ OCR
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-fog">Soumise comme preuve du résultat.</div>
                 <span className="mt-1 inline-block font-mono text-xs text-brass">{match.proofUrl}</span>
               </div>

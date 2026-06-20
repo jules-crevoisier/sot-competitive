@@ -3,17 +3,19 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
+  type SlashCommandOptionsOnlyBuilder,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { db } from "./db.js";
 import { MODES, getMode } from "../../web/src/lib/modes";
 import { rankForMmr } from "../../web/src/lib/ranks";
+import { recognizeText, checkPseudo } from "../../web/src/lib/ocr";
 import { syncRankRole } from "./roles.js";
 
 const BRASS = 0xc8a24b;
 
 export type Command = {
-  data: SlashCommandBuilder | Omit<SlashCommandBuilder, "addSubcommand">;
+  data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (i: ChatInputCommandInteraction) => Promise<void>;
 };
 
@@ -21,12 +23,19 @@ export type Command = {
 const inscription: Command = {
   data: new SlashCommandBuilder()
     .setName("inscription")
-    .setDescription("Lie ton compte Discord à ton pseudo Sea of Thieves.")
+    .setDescription("Lie ton compte Discord à ton pseudo Sea of Thieves (capture vérifiée).")
     .addStringOption((o) =>
       o.setName("pseudo").setDescription("Ton pseudo exact en jeu").setRequired(true).setMaxLength(24),
+    )
+    .addAttachmentOption((o) =>
+      o
+        .setName("preuve")
+        .setDescription("Capture où ton pseudo en jeu est lisible (menu, équipage, scoreboard)")
+        .setRequired(true),
     ),
   async execute(i) {
     const handle = i.options.getString("pseudo", true).trim();
+    const shot = i.options.getAttachment("preuve", true);
     const discordId = i.user.id;
 
     // déjà inscrit ?
@@ -35,24 +44,49 @@ const inscription: Command = {
       await i.reply({ content: `Tu es déjà inscrit en tant que **${mine.handle}**.`, ephemeral: true });
       return;
     }
-
     // pseudo déjà pris ?
     const byHandle = await db.player.findUnique({ where: { handle } });
     if (byHandle && byHandle.discordId) {
       await i.reply({ content: `Le pseudo **${handle}** est déjà lié à un autre compte Discord.`, ephemeral: true });
       return;
     }
+    if (!shot.contentType?.startsWith("image/")) {
+      await i.reply({ content: "La preuve doit être une image.", ephemeral: true });
+      return;
+    }
+
+    await i.deferReply({ ephemeral: true }); // l'OCR peut prendre quelques secondes
+
+    // lecture automatique de la capture
+    let matched = false;
+    try {
+      const res = await fetch(shot.url);
+      const buf = Buffer.from(await res.arrayBuffer());
+      const text = await recognizeText(buf);
+      matched = checkPseudo(text, handle).ok;
+    } catch {
+      await i.editReply("Impossible de lire l'image. Réessaie avec une capture plus nette.");
+      return;
+    }
+
+    if (!matched) {
+      await i.editReply(
+        `❌ Je n'ai pas trouvé **${handle}** sur ta capture. Assure-toi que ton pseudo est bien lisible et réessaie.`,
+      );
+      return;
+    }
 
     const player = byHandle
-      ? await db.player.update({ where: { id: byHandle.id }, data: { discordId } })
-      : await db.player.create({ data: { handle, discordId, avatarHue: Math.floor(Math.random() * 360) } });
+      ? await db.player.update({ where: { id: byHandle.id }, data: { discordId, verified: true, verifiedAt: new Date() } })
+      : await db.player.create({
+          data: { handle, discordId, verified: true, verifiedAt: new Date(), avatarHue: Math.floor(Math.random() * 360) },
+        });
 
     await syncRankRole(i, player.id).catch(() => {});
 
-    await i.reply({
-      content: `⚓ Bienvenue à bord, **${player.handle}** ! Ton compte est lié. Complète ton profil sur le site.`,
-      ephemeral: true,
-    });
+    await i.editReply(
+      `⚓ Bienvenue à bord, **${player.handle}** ! Pseudo vérifié ✓ et compte lié. Complète ton profil sur le site.`,
+    );
   },
 };
 

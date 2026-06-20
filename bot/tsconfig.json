@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "esModuleInterop": true,
@@ -10,5 +11,11 @@
     "allowJs": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "../web/src/lib/ranks.ts", "../web/src/lib/modes.ts"]
+  "include": [
+    "src/**/*.ts",
+    "../web/src/lib/ranks.ts",
+    "../web/src/lib/modes.ts",
+    "../web/src/lib/ocr.ts",
+    "../web/src/lib/db.ts"
+  ]
 }

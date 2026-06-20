@@ -6,8 +6,9 @@ le bot apparaît instantanément sur le site, et inversement.
 
 ## Stack
 - **discord.js v14** (commandes slash)
-- **Prisma** (client généré depuis `../web/prisma/schema.prisma`)
 - **tsx** (exécution TypeScript directe, pas de build)
+- Réutilise la couche du site (`../web/src/lib`) : client Prisma, OCR, barèmes
+  rangs/modes. Aucune duplication — le bot est une fine couche Discord sur le même code.
 
 ## Mise en route
 
@@ -21,10 +22,11 @@ le bot apparaît instantanément sur le site, et inversement.
 
 ### 2. Configurer
 ```bash
-cd bot
+# le site doit être installé et son client Prisma généré (le bot le réutilise)
+cd web && npm install && npx prisma generate && cd ../bot
+
 cp .env.example .env       # puis remplis les 4 valeurs
 npm install
-npm run prisma:generate    # génère le client Prisma depuis le schéma du web
 ```
 `DATABASE_URL` doit être **exactement la même** que celle de Vercel / Neon.
 
@@ -43,11 +45,13 @@ npm run dev                # lance le bot (watch)
 ## Commandes
 | Commande | Effet |
 |---|---|
-| `/inscription <pseudo>` | lie ton compte Discord à ton pseudo Sea of Thieves (crée le `Player` si besoin) |
+| `/inscription <pseudo> <preuve>` | OCR de la capture → vérifie le pseudo, lie le compte Discord, marque « vérifié » |
 | `/profil [@joueur]` | embed du rang, MMR, bilan, équipage |
 | `/ladder <mode>` | top 10 du mode |
 
-L'inscription assigne automatiquement le **rôle de rang** correspondant au MMR (si déjà classé).
+`/inscription` exige une **capture où le pseudo est lisible** : le bot la lit automatiquement
+(OCR, via `web/src/lib/ocr.ts`) et refuse l'inscription si le pseudo n'y figure pas. Le rôle de
+rang correspondant au MMR est attribué dans la foulée.
 
 ## Hébergement
 Process Node séparé du site, sur la même base. Railway / Fly.io / VPS conviennent.

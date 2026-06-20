@@ -19,6 +19,8 @@ model Player {
   country   String? // code ISO pour le drapeau, ex "FR"
   bio       String?
   role      String   @default("PLAYER") // PLAYER | STAFF | ADMIN
+  verified  Boolean  @default(false) // pseudo confirmé par capture (OCR)
+  verifiedAt DateTime?
   createdAt DateTime @default(now())
 
   // — Profil personnalisable —
@@ -231,6 +233,8 @@ model Match {
   scoreB    Int      @default(0)
   winner    String? // "A" | "B" | null
   proofUrl  String? // capture du Scoreboard final
+  proofVerified Boolean @default(false) // scores retrouvés dans la capture (OCR)
+  proofOcrText  String? // texte brut extrait de la capture (audit staff)
   notes     String?
 
   host          Player?  @relation("HostedMatches", fields: [hostId], references: [id])

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { requireCurrentPlayer } from "./session";
+import { recognizeText, checkPseudo } from "./ocr";
 
 /** Nettoie un handle de réseau social : enlève @, URL, espaces. */
 function cleanHandle(raw: string): string | null {
@@ -61,4 +62,36 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/me");
   revalidatePath(`/players/${me.id}`);
   redirect("/me?ok=1");
+}
+
+/**
+ * Vérification automatique du pseudo par capture in-game : on lit le texte de
+ * l'image (OCR) et on confirme que le pseudo du joueur y figure. Si oui, le
+ * compte passe « vérifié ». Aucun service externe : tout se fait en local.
+ */
+export async function verifyHandleScreenshot(formData: FormData) {
+  const me = await requireCurrentPlayer();
+  const file = formData.get("shot");
+  if (!(file instanceof File) || file.size === 0) redirect("/me?verr=nofile");
+  if (file.size > 8_000_000) redirect("/me?verr=size");
+
+  let check;
+  try {
+    const buf = Buffer.from(await file.arrayBuffer());
+    const text = await recognizeText(buf);
+    check = checkPseudo(text, me.handle);
+  } catch {
+    redirect("/me?verr=ocr");
+  }
+
+  if (check.ok) {
+    await db.player.update({
+      where: { id: me.id },
+      data: { verified: true, verifiedAt: new Date() },
+    });
+    revalidatePath("/me");
+    revalidatePath(`/players/${me.id}`);
+    redirect("/me?vok=1");
+  }
+  redirect("/me?verr=nomatch");
 }

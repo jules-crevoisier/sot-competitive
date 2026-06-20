@@ -6,6 +6,7 @@ import { db } from "./db";
 import { getMode } from "./modes";
 import { computeMatch } from "./mmr";
 import { getCurrentPlayer } from "./session";
+import { recognizeText, checkScores } from "./ocr";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function joinCode() {
@@ -60,7 +61,8 @@ export async function formTable(modeKey: string) {
   redirect(`/matches/${match.id}`);
 }
 
-/** Soumet un résultat : scores + preuve, passe en attente de validation. */
+/** Soumet un résultat : scores + preuve, passe en attente de validation.
+ *  Si une capture est jointe, l'OCR vérifie que les deux scores y figurent. */
 export async function submitResult(formData: FormData) {
   const matchId = String(formData.get("matchId"));
   const scoreA = Number(formData.get("scoreA"));
@@ -70,6 +72,21 @@ export async function submitResult(formData: FormData) {
   if (!matchId || Number.isNaN(scoreA) || Number.isNaN(scoreB)) throw new Error("Données invalides");
   if (scoreA === scoreB) throw new Error("Un match ranked ne peut pas finir à égalité");
 
+  // Vérification OCR optionnelle de la capture jointe
+  let proofVerified = false;
+  let proofOcrText: string | null = null;
+  const file = formData.get("proofImage");
+  if (file instanceof File && file.size > 0 && file.size <= 8_000_000) {
+    try {
+      const buf = Buffer.from(await file.arrayBuffer());
+      const text = await recognizeText(buf);
+      proofOcrText = text.slice(0, 2000);
+      proofVerified = checkScores(text, scoreA, scoreB).ok;
+    } catch {
+      // OCR indisponible : on n'empêche pas la soumission, le staff validera à la main
+    }
+  }
+
   await db.match.update({
     where: { id: matchId },
     data: {
@@ -77,6 +94,8 @@ export async function submitResult(formData: FormData) {
       scoreB,
       winner: scoreA > scoreB ? "A" : "B",
       proofUrl: proofUrl || "/proof/scoreboard-demo.png",
+      proofVerified,
+      proofOcrText,
       status: "AWAITING_VALIDATION",
       playedAt: new Date(),
     },

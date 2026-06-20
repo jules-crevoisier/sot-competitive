@@ -59,6 +59,15 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
             <div className="flex items-center gap-3">
               <h1 className="font-display text-3xl font-black text-bone">{player.handle}</h1>
               <span className="text-2xl">{flag(player.country)}</span>
+              {player.verified && (
+                <span
+                  className="chip flex items-center gap-1"
+                  style={{ color: "var(--color-verdigris)", borderColor: "var(--color-verdigris)" }}
+                  title="Pseudo vérifié par capture"
+                >
+                  ✓ Vérifié
+                </span>
+              )}
               {player.role !== "PLAYER" && (
                 <span className="chip text-brass">{player.role}</span>
               )}
