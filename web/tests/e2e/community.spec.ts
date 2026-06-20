@@ -15,7 +15,7 @@ test("proposer un mode l'ajoute à la liste", async ({ page }) => {
 // Navigation vers une page d'équipage et présence de la section membres.
 test("la page d'un équipage affiche ses membres", async ({ page }) => {
   await page.goto("/teams");
-  await expect(page.getByRole("heading", { name: /Les équipages/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Classement des équipages/i })).toBeVisible();
 
   const firstTeam = page.locator('a[href^="/teams/"]').first();
   await expect(firstTeam).toBeVisible();

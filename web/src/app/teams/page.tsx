@@ -2,6 +2,9 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { createTeam } from "@/lib/community-actions";
 import { getCurrentPlayer } from "@/lib/session";
+import { getActiveSeason } from "@/lib/season";
+import { teamStandings } from "@/lib/standings";
+import { rankForMmr } from "@/lib/ranks";
 import { PirateAvatar } from "@/components/pirate-avatar";
 import { Flag } from "@/components/icons";
 
@@ -10,57 +13,74 @@ export const metadata = { title: "Équipages — Custom Seas Lounge" };
 
 export default async function TeamsPage() {
   const me = await getCurrentPlayer();
-  const [teams, myMembership] = await Promise.all([
-    db.team.findMany({
-      orderBy: { createdAt: "asc" },
-      include: { captain: true, members: { include: { player: true } } },
-    }),
-    // suis-je déjà engagé dans un équipage ?
+  const season = await getActiveSeason();
+  const [standings, myMembership] = await Promise.all([
+    teamStandings(season),
     me ? db.teamMember.findUnique({ where: { playerId: me.id }, include: { team: true } }) : null,
   ]);
 
   return (
     <div className="content-layer mx-auto max-w-5xl px-4 py-12">
-      <header>
-        <p className="seal">Bannières &amp; équipages</p>
-        <h1 className="mt-2 font-display text-4xl font-black text-bone">Les équipages</h1>
-        <p className="mt-3 max-w-2xl text-fog">
-          Réunis ton crew sous une même bannière : nom, tag, capitaine et page dédiée. Le classement
-          par équipe arrive avec la saison&nbsp;1.
-        </p>
-        <div className="rope-rule mt-4 w-24" />
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="seal">Bannières &amp; équipages</p>
+          <h1 className="mt-2 font-display text-4xl font-black text-bone">Classement des équipages</h1>
+          <p className="mt-3 max-w-2xl text-fog">
+            Le ladder des crews — saison&nbsp;{season}. Le MMR d&apos;équipe est la moyenne des
+            meilleurs MMR de ses membres.
+          </p>
+          <div className="rope-rule mt-4 w-24" />
+        </div>
+        <Link href="/archives" className="font-display text-xs uppercase tracking-widest text-fog hover:text-brass">
+          Saisons passées →
+        </Link>
       </header>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        {/* Liste */}
-        <div className="space-y-4">
-          {teams.length === 0 && (
+        {/* Ladder */}
+        <div className="space-y-3">
+          {standings.length === 0 && (
             <p className="plank p-6 text-sm text-fog">Aucun équipage pour l&apos;instant. Hisse la première bannière !</p>
           )}
-          {teams.map((t) => (
-            <Link
-              key={t.id}
-              href={`/teams/${t.id}`}
-              className="plank plank-bracket flex items-center gap-4 p-5 transition-colors hover:bg-brass/5"
-            >
-              <PirateAvatar handle={t.tag} hue={t.accentHue} size={56} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="chip text-brass">[{t.tag}]</span>
-                  <h2 className="truncate font-display text-xl font-bold text-bone">{t.name}</h2>
+          {standings.map((t, i) => {
+            const rank = t.mmr !== null ? rankForMmr(t.mmr) : null;
+            return (
+              <Link
+                key={t.id}
+                href={`/teams/${t.id}`}
+                className="plank plank-bracket flex items-center gap-4 p-4 transition-colors hover:bg-brass/5"
+              >
+                <span className="stat-num w-6 shrink-0 text-center text-lg font-bold text-fog">
+                  {t.mmr !== null ? i + 1 : "—"}
+                </span>
+                <PirateAvatar handle={t.tag} hue={t.accentHue} size={48} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="chip text-brass">[{t.tag}]</span>
+                    <h2 className="truncate font-display text-lg font-bold text-bone">{t.name}</h2>
+                  </div>
+                  <p className="mt-0.5 text-xs text-fog-deep">
+                    {t.memberCount} membre{t.memberCount > 1 ? "s" : ""} · {t.wins}V / {t.losses}D
+                  </p>
                 </div>
-                {t.blurb && <p className="mt-1 truncate text-sm text-fog">{t.blurb}</p>}
-                <p className="mt-1 text-xs text-fog-deep">
-                  Capitaine {t.captain.handle} · {t.members.length} membre{t.members.length > 1 ? "s" : ""}
-                </p>
-              </div>
-              <div className="flex -space-x-2">
-                {t.members.slice(0, 4).map((m) => (
-                  <PirateAvatar key={m.id} handle={m.player.handle} hue={m.player.avatarHue} size={30} />
-                ))}
-              </div>
-            </Link>
-          ))}
+                <div className="hidden -space-x-2 sm:flex">
+                  {t.members.slice(0, 4).map((m) => (
+                    <PirateAvatar key={m.id} handle={m.handle} hue={m.avatarHue} size={26} />
+                  ))}
+                </div>
+                <div className="w-16 shrink-0 text-right">
+                  {t.mmr !== null ? (
+                    <>
+                      <div className="stat-num text-xl font-bold" style={{ color: rank!.color }}>{t.mmr}</div>
+                      <div className="font-display text-[0.55rem] uppercase tracking-widest text-fog">{rank!.short}</div>
+                    </>
+                  ) : (
+                    <div className="font-display text-[0.6rem] uppercase tracking-widest text-fog-deep">Non classé</div>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Création */}

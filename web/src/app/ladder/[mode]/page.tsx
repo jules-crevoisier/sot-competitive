@@ -64,12 +64,13 @@ export default async function LadderPage({
         </div>
         <div className="flex-1">
           <p className="seal" style={{ color: a.color }}>
-            Classement · Saison 1 · {mode.tagline}
+            Classement · Saison {season} · {mode.tagline}
           </p>
           <h1 className="font-display text-3xl font-bold text-bone">{mode.name}</h1>
           <p className="mt-1 text-sm text-fog">{mode.format} · Preset {mode.preset}</p>
         </div>
         <Link href={`/modes#${mode.key}`} className="btn-ghost">Voir les réglages</Link>
+        <Link href="/archives" className="btn-ghost">Saisons passées</Link>
         <Link href="/play" className="btn-brass">Jouer ce mode</Link>
       </header>
 

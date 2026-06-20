@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Anchor, WaveDivider } from "./icons";
+import { getActiveSeason } from "@/lib/season";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const season = await getActiveSeason();
   return (
     <footer className="content-layer mt-20 border-t border-brass/20 bg-[#081019]">
       <div className="text-verdigris-deep">
@@ -33,12 +35,12 @@ export function SiteFooter() {
             <Link href="/guide" className="text-fog hover:text-brass">Guide du joueur</Link>
             <Link href="/matches" className="text-fog hover:text-brass">Derniers matchs</Link>
             <Link href="/admin" className="text-fog hover:text-brass">Espace staff</Link>
-            <span className="text-fog-deep">Bot Discord — bientôt</span>
+            <Link href="/archives" className="text-fog hover:text-brass">Archives</Link>
           </div>
         </div>
         <div className="mt-8 flex items-center justify-between border-t border-brass/10 pt-5 text-xs text-fog-deep">
           <span>© {new Date().getFullYear()} — fait par la communauté, pour la communauté.</span>
-          <span className="font-mono">Saison 1</span>
+          <span className="font-mono">Saison {season}</span>
         </div>
       </div>
     </footer>

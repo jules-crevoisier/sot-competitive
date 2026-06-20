@@ -4,7 +4,8 @@ import { test, expect } from "@playwright/test";
 const ROUTES: { path: string; heading: RegExp }[] = [
   { path: "/", heading: /La mer a enfin/i },
   { path: "/me", heading: /Mon profil/i },
-  { path: "/teams", heading: /Les équipages/i },
+  { path: "/teams", heading: /Classement des équipages/i },
+  { path: "/archives", heading: /Archives des saisons/i },
   { path: "/modes", heading: /Modes/i },
   { path: "/play", heading: /Rejoindre une file/i },
   { path: "/friends", heading: /Amis/i },
